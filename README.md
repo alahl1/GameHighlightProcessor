@@ -35,6 +35,7 @@ Then click Create a group
 Search for the following roles:
 AdministratorAccess
 ecsTaskExecutionRole
+AmazonEC2ContainerRegistryFullAccess
 
 Click on the box beside the role, name the group something you will remember.
 Click create group
@@ -120,5 +121,72 @@ touch Dockerfile fetch.py requirements.txt
 Add code to the files
 In the CLI enter nano fetch.py
 In another browser navigate to the GitHub Repo and copy the contents within fetch.py
+Reminder to replace with your S3bucket name, your RapidAPI key and region
+Exit and Save file
 
+In CLI enter nano Dockerfile
+Paste the code found within the Dockerfile on Github into the blank area
+Exit and Save file
 
+In CLI enter nano requirements.txt
+Paste the code found within the requirements.txt file on Github into the blank area
+Exit and Save file
+
+# Step 3: Build and Test the Docker Container
+Build the Docker Image
+docker build -t highlight-processor .
+
+Run the Docker Image Locally
+docker run highlight-processor
+
+Verify that the script fetches highlights and stores them in your specified S3 bucket
+
+# Troubleshooting Step 3 Errors SKIP IF SUCCESSFUL
+If you get the error message "Unable to locate credentials", this is typically because your script that is running in the Docker container, cannot access your AWS credentials. We need to pass the AWS credentials into the container.
+
+(1) Verfiy AWS Credntials Locally
+aws configure
+
+Provide your "Access Key ID", "Secret Access Key" and Region. The Access Key ID can be found in IAM under "Users" and the Secret Acces Key is provided when you created the User. If you didn't copy this value you will have to create a new user with the proper permissions and update this info. See prereq in ReadME for help.
+
+Check the credentials are valid
+aws s3 ls
+If this works, then your credntials are correct
+
+(2) Pass AWS Credentials to Docker
+Find your AWS credntials file location
+cat ~/.aws/credentials
+
+Run the Docker container and bind the AWS credentials directory
+docker run -v ~/.aws:/root/.aws highlight-processor
+
+this will mount your local .aws directory inside the contianer and make your credntials available to the boto3 client.
+
+# Step 4: Push the Docker Image to Amazon Elastic Container Registry (ECR)
+Create an ECR Repository
+aws ecr create-repository --repository-name highlight-processor
+
+Authenticate Docker with ECR
+Replace <your_account_id> with your account id
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <your_account_id>.dkr.ecr.us-east-1.amazonaws.com
+
+Tag and Push the image
+Replace <your_account_id> with your account id
+docker tag highlight-processor:latest <your_account_id>.dkr.ecr.us-east-1.amazonaws.com/highlight-processor:latest
+docker push <your_account_id>.dkr.ecr.us-east-1.amazonaws.com/highlight-processor:latest
+
+# Troubleshooting Step 4 Errors SKIP IF SUCCESSFUL
+Confirm you've added the appropriate permissions to interact with Amazon ECR
+From the IAM Console, select Users from the left hand menu
+Select the User or role associated with the credentials you are using
+Attach a policy, click add permissions, attach policies directly
+Search and add this managed policy "AmazonEC2ContainerRegistryFullAccess"
+
+# Step 5: Set Up AWS Fargate to Run the Script
+Create an ECS Cluster
+aws ecs create-cluster --cluster-name highlight-cluster
+
+Register the task
+aws ecs register-task-definition --cli-input-json file://task-definition.json
+
+Run the Task
