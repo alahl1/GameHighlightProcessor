@@ -18,8 +18,13 @@ aws --version
 Python3 should be pre-installed also
 python3 --version
 
+(3) Copy your AWS Account ID
+Once logged in to the AWS Management Console
+Click on your account name in the top right corner
+You will see your account ID
+Copy and save this somewhere safe because you will need to update codes in the labs later
 
-(3) AWS Permissions to create resources
+(4) AWS Permissions to create resources
 I'll provide steps to do this from the UI (AWS Console) and from the CLI (Command Line Interface)
 
 AWS Console
@@ -37,7 +42,7 @@ AdministratorAccess
 ecsTaskExecutionRole
 AmazonEC2ContainerRegistryFullAccess
 
-Click on the box beside the role, name the group something you will remember.
+Click on the box beside the role, name the group ecsTaskExecutionRole. The name is important because it is called in some of the scripts. Copy and Paste name to avoid spelling errors.
 Click create group
 
 Under the user groups section, select the group you recently created
@@ -168,7 +173,7 @@ aws ecr create-repository --repository-name highlight-processor
 
 Authenticate Docker with ECR
 Replace <your_account_id> with your account id
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <your_account_id>.dkr.ecr.us-east-1.amazonaws.com
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <your_account_id>.dkr.ecr.us-east-1.amazonaws.com<your_account_id>.dkr.ecr.us-east-1.amazonaws.com
 
 Tag and Push the image
 Replace <your_account_id> with your account id
@@ -190,3 +195,40 @@ Register the task
 aws ecs register-task-definition --cli-input-json file://task-definition.json
 
 Run the Task
+You'll need to replace subnet-xxxxxxxx with a valid subnet ID & sg-xxxxxxxx with a valid security group ID
+Help Finding SubnetID and SG:
+Subnet - Search "VPC" at the top, on the left you will see "Subnets" click the name
+You'll see alist of subnts in your accounts, copy any ID that says "Available" in the state
+
+SG - Search EC2, and under "Network & Security" on the left blade, you will see "Security Groups"
+Copy the Security Group ID
+
+This can also be done within the command line:
+SubnetID: aws ec2 describe-subnets --query "Subnets[*].[SubnetId,AvailabilityZone]" --output table
+Security Groups: aws ec2 describe-security-groups --query "SecurityGroups[*].[GroupId,GroupName]" --output table
+
+aws ecs run-task \
+  --cluster highlight-cluster \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-xxxxxxxx],securityGroups=[sg-xxxxxxxx],assignPublicIp=ENABLED}" \
+  --task-definition highlight-task
+
+  # Step 6: Verify the Task Execution
+  Search ECS Console in the top
+  Navigate to the ECS Cluster: highlight-cluster
+  Click on Tasks
+  Look for your task: NBA Highlight-task
+  Check the status, if it's running that mean the task is actively runnning, if it says stopped that means it stopped or an error occured
+
+  Search CloudWatch
+  Under Logs on the left blade, click on log groups
+  Select the log group associated with this project
+  Click the most recent log stream
+  And you should see timestamps and messages that confirm the highlights were fetched, saved to S3, and any errors that were encountered
+
+  If your task saves output to an S3 bucket, you can confirm the data was uploaded correctly
+  Search S3
+  Navidate to your S3 Bucket
+  Locate the files that were uploaded by the task "highlights/basketball_highlights.json"
+  Open and verify the contents
+  
